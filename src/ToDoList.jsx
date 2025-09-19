@@ -1,55 +1,89 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 function ToDoList() {
+  // Stable id counter for tasks
+  const nextIdRef = useRef(0);
+  const makeTask = (text) => ({ id: nextIdRef.current++, text });
+
   const [tasks, setTasks] = useState([
-    "Eat Breakfast",
-    "Take shower",
-    "Walk dog",
+    makeTask("eat"),
+    makeTask("code"),
+    makeTask("make portfolio(eventually)"),
   ]);
   const [newTask, setNewTask] = useState("");
+
+  // Track ids that are in the process of being removed (to play animation)
+  const [deletingIds, setDeletingIds] = useState(new Set());
+  // Track last moved task id to trigger highlight animation
+  const [movedTaskId, setMovedTaskId] = useState(null);
+  const [lastAddedId, setLastAddedId] = useState(null);
+  // Clear moved indicator after animation duration
+  useEffect(() => {
+    if (movedTaskId == null) return;
+    const t = setTimeout(() => setMovedTaskId(null), 900); // match CSS animation
+    return () => clearTimeout(t);
+  }, [movedTaskId]);
 
   function handleInputChange(event) {
     setNewTask(event.target.value);
   }
 
   function addTask() {
-    if (newTask.trim() !== "") {
-      setTasks(() => [...tasks, newTask]);
-      setNewTask("");
-    }
+    if (newTask.trim() === "") return;
+    const taskObj = makeTask(newTask.trim());
+    setTasks((prev) => [...prev, taskObj]);
+    setLastAddedId(taskObj.id);
+    // Clear enter animation marker after it runs
+    setTimeout(
+      () => setLastAddedId((id) => (id === taskObj.id ? null : id)),
+      400
+    );
+    setNewTask("");
   }
 
-  function deleteTask(index) {
-    const updatedTasks = tasks.filter((_, i) => i !== index);
-    setTasks(updatedTasks);
+  function deleteTask(id) {
+    // Find the DOM element to capture its height before collapsing
+    const li = document.querySelector(`li[data-task-id='${id}']`);
+    if (li) {
+      li.style.setProperty("--item-height", li.offsetHeight + "px");
+      li.classList.add("capture-height");
+    }
+    setDeletingIds((prev) => new Set(prev).add(id));
+    // Wait for animation to finish before removing from state (match CSS 320ms)
+    setTimeout(() => {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 320);
   }
 
   function moveTaskUp(index) {
-    if (index > 0) {
-      const updatedTasks = [...tasks];
-      [updatedTasks[index], updatedTasks[index - 1]] = [
-        updatedTasks[index - 1],
-        updatedTasks[index],
-      ];
-      setTasks(updatedTasks);
-    }
+    if (index <= 0) return;
+    setTasks((prev) => {
+      const arr = [...prev];
+      [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]];
+      setMovedTaskId(arr[index - 1].id); // the task we moved
+      return arr;
+    });
   }
 
   function moveTaskDown(index) {
-    if (index < tasks.length - 1) {
-      const updatedTasks = [...tasks];
-      [updatedTasks[index], updatedTasks[index + 1]] = [
-        updatedTasks[index + 1],
-        updatedTasks[index],
-      ];
-      setTasks(updatedTasks);
-    }
+    if (index >= tasks.length - 1) return;
+    setTasks((prev) => {
+      const arr = [...prev];
+      [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
+      setMovedTaskId(arr[index + 1].id); // the task we moved down
+      return arr;
+    });
   }
 
   return (
     <div className="to-do-list">
       <h1>To-Do-List</h1>
-      <div>
+      <div className="input-row">
         <input
           type="text"
           placeholder="Enter a task..."
@@ -61,20 +95,43 @@ function ToDoList() {
         </button>
       </div>
       <ol>
-        {tasks.map((task, index) => (
-          <li key={index}>
-            <span className="text">{task}</span>
-            <button className="delete-button" onClick={() => deleteTask(index)}>
-              Delete
-            </button>
-            <button className="move-button" onClick={() => moveTaskUp(index)}>
-              ⬆︎
-            </button>
-            <button className="move-button" onClick={() => moveTaskDown(index)}>
-              ⬇︎
-            </button>
-          </li>
-        ))}
+        {tasks.map((task, index) => {
+          const isDeleting = deletingIds.has(task.id);
+          const isMoved = movedTaskId === task.id;
+          const liClass = [
+            isDeleting ? "item-removing" : "",
+            isMoved ? "item-moved" : "",
+            lastAddedId === task.id ? "item-enter" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          return (
+            <li key={task.id} data-task-id={task.id} className={liClass}>
+              <span className="text">{task.text}</span>
+              <button
+                className="delete-button"
+                disabled={isDeleting}
+                onClick={() => deleteTask(task.id)}
+              >
+                Delete
+              </button>
+              <button
+                className="move-button"
+                disabled={isDeleting}
+                onClick={() => moveTaskUp(index)}
+              >
+                ⬆︎
+              </button>
+              <button
+                className="move-button"
+                disabled={isDeleting}
+                onClick={() => moveTaskDown(index)}
+              >
+                ⬇︎
+              </button>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
