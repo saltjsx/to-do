@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { trackEvent } from "./analytics/track.js";
 
 function ToDoList() {
   // Stable id counter for tasks
@@ -33,6 +34,10 @@ function ToDoList() {
     const taskObj = makeTask(newTask.trim());
     setTasks((prev) => [...prev, taskObj]);
     setLastAddedId(taskObj.id);
+    trackEvent("todo_added", {
+      task_id: taskObj.id,
+      length: taskObj.text.length,
+    });
     // Clear enter animation marker after it runs
     setTimeout(
       () => setLastAddedId((id) => (id === taskObj.id ? null : id)),
@@ -57,6 +62,7 @@ function ToDoList() {
         next.delete(id);
         return next;
       });
+      trackEvent("todo_deleted", { task_id: id });
     }, 320);
   }
 
@@ -66,6 +72,11 @@ function ToDoList() {
       const arr = [...prev];
       [arr[index], arr[index - 1]] = [arr[index - 1], arr[index]];
       setMovedTaskId(arr[index - 1].id); // the task we moved
+      trackEvent("todo_moved", {
+        task_id: arr[index - 1].id,
+        direction: "up",
+        position: index - 1,
+      });
       return arr;
     });
   }
@@ -76,6 +87,11 @@ function ToDoList() {
       const arr = [...prev];
       [arr[index], arr[index + 1]] = [arr[index + 1], arr[index]];
       setMovedTaskId(arr[index + 1].id); // the task we moved down
+      trackEvent("todo_moved", {
+        task_id: arr[index + 1].id,
+        direction: "down",
+        position: index + 1,
+      });
       return arr;
     });
   }
