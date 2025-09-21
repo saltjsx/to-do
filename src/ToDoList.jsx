@@ -32,12 +32,18 @@ function ToDoList() {
   function addTask() {
     if (newTask.trim() === "") return;
     const taskObj = makeTask(newTask.trim());
-    setTasks((prev) => [...prev, taskObj]);
-    setLastAddedId(taskObj.id);
-    trackEvent("todo_added", {
-      task_id: taskObj.id,
-      length: taskObj.text.length,
+    setTasks((prev) => {
+      const next = [...prev, taskObj];
+      trackEvent("todo_added", {
+        task_id: taskObj.id,
+        text_length: taskObj.text.length,
+        list_size_before: prev.length,
+        list_size_after: next.length,
+        position: next.length - 1,
+      });
+      return next;
     });
+    setLastAddedId(taskObj.id);
     // Clear enter animation marker after it runs
     setTimeout(
       () => setLastAddedId((id) => (id === taskObj.id ? null : id)),
@@ -53,16 +59,27 @@ function ToDoList() {
       li.style.setProperty("--item-height", li.offsetHeight + "px");
       li.classList.add("capture-height");
     }
+    // Capture position before removal
+    const indexBefore = tasks.findIndex((t) => t.id === id);
     setDeletingIds((prev) => new Set(prev).add(id));
     // Wait for animation to finish before removing from state (match CSS 320ms)
     setTimeout(() => {
-      setTasks((prev) => prev.filter((t) => t.id !== id));
+      setTasks((prev) => {
+        const listSizeBefore = prev.length;
+        const next = prev.filter((t) => t.id !== id);
+        trackEvent("todo_deleted", {
+          task_id: id,
+          position_before: indexBefore,
+          list_size_before: listSizeBefore,
+          list_size_after: next.length,
+        });
+        return next;
+      });
       setDeletingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
         return next;
       });
-      trackEvent("todo_deleted", { task_id: id });
     }, 320);
   }
 
@@ -75,7 +92,9 @@ function ToDoList() {
       trackEvent("todo_moved", {
         task_id: arr[index - 1].id,
         direction: "up",
-        position: index - 1,
+        from_index: index,
+        to_index: index - 1,
+        list_size: arr.length,
       });
       return arr;
     });
@@ -90,7 +109,9 @@ function ToDoList() {
       trackEvent("todo_moved", {
         task_id: arr[index + 1].id,
         direction: "down",
-        position: index + 1,
+        from_index: index,
+        to_index: index + 1,
+        list_size: arr.length,
       });
       return arr;
     });
