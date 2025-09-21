@@ -8,16 +8,24 @@ export function DatabuddyProvider({ children }) {
   if (!DATABUDDY_CLIENT_ID) return children;
   return (
     <>
+      {children}
       <Databuddy
         clientId={DATABUDDY_CLIENT_ID}
+        trackHashChanges
+        trackAttributes
+        trackOutgoingLinks
+        trackInteractions
+        trackEngagement
+        trackScrollDepth
+        trackExitIntent
+        trackBounceRate
         trackWebVitals
         trackErrors
         enableBatching
+        // Keep batching defaults; could expose via config later
         batchSize={10}
         batchTimeout={3000}
-        disabled={import.meta.env.DEV}
       />
-      {children}
     </>
   );
 }
